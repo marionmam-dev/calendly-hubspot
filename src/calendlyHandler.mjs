@@ -5,7 +5,6 @@ const VERIFY_SIGNATURE = process.env.CALENDLY_WEBHOOK_VERIFY === "true";
 
 function verifyCalendlySignature(req) {
   const key = process.env.CALENDLY_WEBHOOK_SIGNING_KEY;
-
   if (!key) return true;
 
   const header = req.headers["calendly-webhook-signature"];
@@ -22,7 +21,6 @@ function verifyCalendlySignature(req) {
   return hmac.digest("hex") === signatureReceived;
 }
 
-// 🔥 WEBHOOK ULTRA LIGHT
 export default async function calendlyHandler(req, res) {
   console.log("📩 Webhook Calendly reçu");
 
@@ -48,15 +46,8 @@ export default async function calendlyHandler(req, res) {
     return res.status(200).send("skip");
   }
 
-  // 🚀 ENQUEUE WORKER
-  try {
-    await axios.post(`${process.env.BASE_URL}/worker`, {
-      invitee
-    });
-  } catch (err) {
-    console.error("❌ Worker dispatch error:", err.message);
-  }
+  // 👉 envoi immédiat au worker
+  await axios.post(`${process.env.BASE_URL}/worker`, { invitee });
 
-  // IMPORTANT: réponse immédiate
   res.status(200).send("ok");
 }
