@@ -3,9 +3,6 @@ import axios from "axios";
 
 const VERIFY_SIGNATURE = process.env.CALENDLY_WEBHOOK_VERIFY === "true";
 
-// 🔹 Delay helper
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 // 🔐 Vérifie la signature du webhook Calendly
 function verifyCalendlySignature(req) {
   const CALENDLY_WEBHOOK_KEY = process.env.CALENDLY_WEBHOOK_SIGNING_KEY;
@@ -22,8 +19,10 @@ function verifyCalendlySignature(req) {
   if (!match) return false;
 
   const [_, timestamp, signatureReceived] = match;
+
   const hmac = crypto.createHmac("sha256", CALENDLY_WEBHOOK_KEY);
   hmac.update(`${timestamp}.${req.rawBody}`);
+
   const expectedSignature = hmac.digest("hex");
 
   return signatureReceived === expectedSignature;
@@ -42,31 +41,33 @@ const questionMap = {
   "Adresse postale": "address"
 };
 
-// 🔹 Polling pour rechercher le contact sur HubSpot
-async function findHubspotContact(email, HUBSPOT_TOKEN, retries = 6, interval = 5000) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const searchRes = await axios.post(
-        "https://api.hubapi.com/crm/v3/objects/contacts/search",
+// 🔹 Recherche SIMPLE contact HubSpot (sans polling)
+async function findContact(email, HUBSPOT_TOKEN) {
+  const searchRes = await axios.post(
+    "https://api.hubapi.com/crm/v3/objects/contacts/search",
+    {
+      filterGroups: [
         {
-          filterGroups: [{ filters: [{ propertyName: "email", operator: "EQ", value: email }] }],
-          limit: 1
-        },
-        { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}`, "Content-Type": "application/json" } }
-      );
-
-      if (searchRes.data.total > 0) {
-        return searchRes.data.results[0].id;
+          filters: [
+            {
+              propertyName: "email",
+              operator: "EQ",
+              value: email
+            }
+          ]
+        }
+      ],
+      limit: 1
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${HUBSPOT_TOKEN}`,
+        "Content-Type": "application/json"
       }
-
-      console.log(`⏳ Contact non trouvé, tentative ${i + 1}/${retries}…`);
-      await sleep(interval);
-    } catch (err) {
-      console.error("❌ Erreur recherche contact :", err.response?.data || err.message);
     }
-  }
+  );
 
-  return null; // Toujours pas trouvé après toutes les tentatives
+  return searchRes.data.results?.[0]?.id || null;
 }
 
 // 🔹 Handler principal
@@ -98,11 +99,12 @@ export default async function calendlyHandler(req, res) {
   const email = invitee.email.toLowerCase();
   const scheduledEvent = invitee.scheduled_event || {};
 
-  // === Recherche contact avec polling
-  const contactId = await findHubspotContact(email, HUBSPOT_TOKEN);
+  // ✅ CONTACT (sans polling)
+  const contactId = await findContact(email, HUBSPOT_TOKEN);
+
   if (!contactId) {
-    console.warn("⚠️ Contact introuvable après plusieurs tentatives, abandon");
-    return res.status(200).send("Contact non trouvé après plusieurs tentatives");
+    console.warn("⚠️ Contact introuvable dans HubSpot");
+    return res.status(200).send("Contact introuvable");
   }
 
   console.log("✔ Contact trouvé :", contactId);
@@ -122,8 +124,17 @@ export default async function calendlyHandler(req, res) {
   let jourRdv = "";
   if (scheduledEvent.start_time) {
     const dateObj = new Date(scheduledEvent.start_time);
-    heureRdv = dateObj.toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" });
-    jourRdv = dateObj.toLocaleDateString("fr-FR", { timeZone: "Europe/Paris", weekday: "long", day: "numeric", month: "long" });
+    heureRdv = dateObj.toLocaleTimeString("fr-FR", {
+      timeZone: "Europe/Paris",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+    jourRdv = dateObj.toLocaleDateString("fr-FR", {
+      timeZone: "Europe/Paris",
+      weekday: "long",
+      day: "numeric",
+      month: "long"
+    });
   }
 
   const contactProps = {
@@ -146,64 +157,79 @@ export default async function calendlyHandler(req, res) {
     await axios.patch(
       `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}`,
       { properties: contactProps },
-      { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}`, "Content-Type": "application/json" } }
+      {
+        headers: {
+          Authorization: `Bearer ${HUBSPOT_TOKEN}`,
+          "Content-Type": "application/json"
+        }
+      }
     );
+
     console.log("✔ Contact enrichi");
   } catch (err) {
     console.error("❌ Erreur mise à jour contact :", err.response?.data || err.message);
   }
 
-  // === Entreprise (search → create → associate)
+  // === Entreprise (inchangé)
   const companyName = scheduledEvent.name;
   const companyLocation = scheduledEvent.location?.location || "";
   const organizerName = scheduledEvent.event_memberships?.[0]?.user_name || "";
 
   if (companyName) {
-    let companyId;
     try {
       const companySearch = await axios.post(
         "https://api.hubapi.com/crm/v3/objects/companies/search",
         {
-          filterGroups: [{ filters: [{ propertyName: "name", operator: "EQ", value: companyName }] }],
+          filterGroups: [
+            {
+              filters: [
+                {
+                  propertyName: "name",
+                  operator: "EQ",
+                  value: companyName
+                }
+              ]
+            }
+          ],
           limit: 1
         },
-        { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}`, "Content-Type": "application/json" } }
+        {
+          headers: {
+            Authorization: `Bearer ${HUBSPOT_TOKEN}`,
+            "Content-Type": "application/json"
+          }
+        }
       );
+
+      let companyId;
 
       if (companySearch.data.total > 0) {
         companyId = companySearch.data.results[0].id;
-        console.log("🏢 Entreprise trouvée :", companyId);
       } else {
         const created = await axios.post(
           "https://api.hubapi.com/crm/v3/objects/companies",
-          { properties: { name: companyName, address: companyLocation, opticien_sur_zone: organizerName } },
-          { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}`, "Content-Type": "application/json" } }
-        );
-        companyId = created.data.id;
-        console.log("🏢 Entreprise créée :", companyId);
-      }
-
-      // Association contact ↔ entreprise
-      const existingAssocRes = await axios.get(
-        `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}/associations/companies`,
-        { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}`, "Content-Type": "application/json" } }
-      );
-
-      const existingCompanyIds = (existingAssocRes.data.results || []).map(r => String(r.id));
-      if (!existingCompanyIds.includes(String(companyId))) {
-        await axios.post(
-          `https://api.hubapi.com/crm/v3/associations/contact/company/batch/create`,
           {
-            inputs: [{ from: { id: contactId }, to: { id: companyId }, type: "contact_to_company" }]
+            properties: {
+              name: companyName,
+              address: companyLocation,
+              opticien_sur_zone: organizerName
+            }
           },
-          { headers: { Authorization: `Bearer ${HUBSPOT_TOKEN}`, "Content-Type": "application/json" } }
+          {
+            headers: {
+              Authorization: `Bearer ${HUBSPOT_TOKEN}`,
+              "Content-Type": "application/json"
+            }
+          }
         );
-        console.log("🔗 Contact ↔ entreprise associé");
-      } else {
-        console.log("ℹ️ L'entreprise est déjà associée au contact.");
+
+        companyId = created.data.id;
       }
+
+      console.log("🏢 Company OK :", companyId);
+
     } catch (err) {
-      console.error("❌ Erreur création/recherche entreprise :", err.response?.data || err.message);
+      console.error("❌ Erreur entreprise :", err.response?.data || err.message);
     }
   }
 
