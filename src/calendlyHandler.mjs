@@ -3,7 +3,7 @@ import axios from "axios";
 
 const VERIFY_SIGNATURE = process.env.CALENDLY_WEBHOOK_VERIFY === "true";
 
-// 🔐 Signature Calendly
+// 🔐 Vérification signature Calendly
 function verifyCalendlySignature(req) {
   const key = process.env.CALENDLY_WEBHOOK_SIGNING_KEY;
   if (!key) return true;
@@ -120,14 +120,14 @@ export default async function calendlyHandler(req, res) {
 
   console.log("✔ Contact OK :", contactId);
 
-  // 🧩 questions
+  // 🧩 QUESTIONS CALENDLY
   const questionProperties = {};
   for (const qa of invitee.questions_and_answers || []) {
     const key = questionMap[qa.question];
     if (key) questionProperties[key] = qa.answer;
   }
 
-  // 🧾 payload HubSpot
+  // 🧾 UPDATE CONTACT HUBSPOT
   const contactProps = {
     firstname: invitee.first_name,
     lastname: invitee.last_name,
@@ -154,6 +154,101 @@ export default async function calendlyHandler(req, res) {
     console.log("✔ Contact enrichi");
   } catch (err) {
     console.error("❌ Worker crash:", err.response?.data || err.message);
+  }
+
+  // 🏢 ENTREPRISE (search → create → associate)
+  const companyName = event.name;
+  const companyLocation = event.location?.location || "";
+  const organizerName = event.event_memberships?.[0]?.user_name || "";
+
+  if (companyName) {
+    try {
+      const companySearch = await axios.post(
+        "https://api.hubapi.com/crm/v3/objects/companies/search",
+        {
+          filterGroups: [{
+            filters: [{
+              propertyName: "name",
+              operator: "EQ",
+              value: companyName
+            }]
+          }],
+          limit: 1
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${HUBSPOT_TOKEN}`,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+
+      let companyId;
+
+      if (companySearch.data.total > 0) {
+        companyId = companySearch.data.results[0].id;
+        console.log("🏢 Entreprise trouvée :", companyId);
+      } else {
+        const created = await axios.post(
+          "https://api.hubapi.com/crm/v3/objects/companies",
+          {
+            properties: {
+              name: companyName,
+              address: companyLocation,
+              opticien_sur_zone: organizerName
+            }
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${HUBSPOT_TOKEN}`,
+              "Content-Type": "application/json"
+            }
+          }
+        );
+
+        companyId = created.data.id;
+        console.log("🏢 Entreprise créée :", companyId);
+      }
+
+      // 🔗 association contact ↔ company
+      const assocCheck = await axios.get(
+        `https://api.hubapi.com/crm/v3/objects/contacts/${contactId}/associations/companies`,
+        {
+          headers: {
+            Authorization: `Bearer ${HUBSPOT_TOKEN}`,
+            "Content-Type": "application/json"
+          }
+        }
+      );
+
+      const existing = (assocCheck.data.results || []).map(r => String(r.id));
+
+      if (!existing.includes(String(companyId))) {
+        await axios.post(
+          "https://api.hubapi.com/crm/v3/associations/contact/company/batch/create",
+          {
+            inputs: [{
+              from: { id: contactId },
+              to: { id: companyId },
+              type: "contact_to_company"
+            }]
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${HUBSPOT_TOKEN}`,
+              "Content-Type": "application/json"
+            }
+          }
+        );
+
+        console.log("🔗 Contact ↔ Entreprise associé");
+      } else {
+        console.log("ℹ️ Déjà associé");
+      }
+
+    } catch (err) {
+      console.error("❌ Erreur entreprise :", err.response?.data || err.message);
+    }
   }
 
   res.status(200).send("Webhook traité");
