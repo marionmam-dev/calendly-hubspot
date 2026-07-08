@@ -81,6 +81,68 @@ async function findContactWithRetry(email, token) {
   return null;
 }
 
+// 🎂 Conversion date de naissance Calendly → HubSpot date
+function parseBirthDate(value) {
+  if (!value) return null;
+
+  let clean = value.trim();
+
+  let day;
+  let month;
+  let year;
+
+  // DD/MM/YYYY
+  let match = clean.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+
+  // DD-MM-YYYY
+  if (!match) {
+    match = clean.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  }
+
+  // DDMMYYYY
+  if (!match) {
+    match = clean.match(/^(\d{2})(\d{2})(\d{4})$/);
+  }
+
+  // DD/MM/YY ou DD-MM-YY ou DDMMYY
+  if (!match) {
+    match = clean.match(/^(\d{2})[\/-]?(\d{2})[\/-]?(\d{2})$/);
+  }
+
+  if (!match) {
+    console.warn(`⚠️ Format date naissance ignoré : ${value}`);
+    return null;
+  }
+
+  [, day, month, year] = match;
+
+  day = Number(day);
+  month = Number(month);
+  year = Number(year);
+
+  // Année courte
+  if (year < 100) {
+    year = year <= 30 ? 2000 + year : 1900 + year;
+  }
+
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  // Vérification date réelle
+  if (
+    date.getUTCDate() !== day ||
+    date.getUTCMonth() + 1 !== month ||
+    date.getUTCFullYear() !== year
+  ) {
+    console.warn(`⚠️ Date invalide ignorée : ${value}`);
+    return null;
+  }
+
+  console.log(
+    `🎂 Date de naissance convertie : ${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`
+  );
+
+  return date.getTime();
+}
 // 🔹 Handler principal
 export default async function calendlyHandler(req, res) {
   console.log("📩 Webhook Calendly reçu");
@@ -121,11 +183,26 @@ export default async function calendlyHandler(req, res) {
   console.log("✔ Contact OK :", contactId);
 
   // 🧩 QUESTIONS CALENDLY
-  const questionProperties = {};
-  for (const qa of invitee.questions_and_answers || []) {
-    const key = questionMap[qa.question];
-    if (key) questionProperties[key] = qa.answer;
+const questionProperties = {};
+
+let birthDateValue = null;
+
+for (const qa of invitee.questions_and_answers || []) {
+
+  const key = questionMap[qa.question];
+
+  if (key) {
+    questionProperties[key] = qa.answer;
   }
+
+  if (qa.question === "Date de naissance") {
+    birthDateValue = parseBirthDate(qa.answer);
+  }
+}
+
+if (birthDateValue) {
+  questionProperties.date_de_naissance = birthDateValue;
+}
 
   // 🧾 UPDATE CONTACT HUBSPOT
   const contactProps = {
