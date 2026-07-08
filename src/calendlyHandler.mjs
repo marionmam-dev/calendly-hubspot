@@ -195,7 +195,7 @@ for (const qa of invitee.questions_and_answers || []) {
     questionProperties[key] = qa.answer;
   }
 
-  if (qa.question === "Date de naissance") {
+  if (qa.question === "Date de naissance Calendly") {
     birthDateValue = parseBirthDate(qa.answer);
   }
 }
