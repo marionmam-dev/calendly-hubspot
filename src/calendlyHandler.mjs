@@ -81,36 +81,46 @@ async function findContactWithRetry(email, token) {
   return null;
 }
 
-// 🎂 Conversion date de naissance Calendly → HubSpot date
+// 🎂 Conversion date de naissance Calendly → HubSpot
 function parseBirthDate(value) {
+
   if (!value) return null;
 
   let clean = value.trim();
+
+  // uniformise tous les séparateurs
+  clean = clean
+    .replace(/\./g, "/")
+    .replace(/-/g, "/")
+    .replace(/,/g, "/")
+    .replace(/\s+/g, "/");
 
   let day;
   let month;
   let year;
 
-  // DD/MM/YYYY
-  let match = clean.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  let match;
 
-  // DD-MM-YYYY
-  if (!match) {
-    match = clean.match(/^(\d{2})-(\d{2})-(\d{4})$/);
-  }
+  // DD/MM/YYYY
+  match = clean.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
 
   // DDMMYYYY
   if (!match) {
     match = clean.match(/^(\d{2})(\d{2})(\d{4})$/);
   }
 
-  // DD/MM/YY ou DD-MM-YY ou DDMMYY
+  // DD/MM/YY
   if (!match) {
-    match = clean.match(/^(\d{2})[\/-]?(\d{2})[\/-]?(\d{2})$/);
+    match = clean.match(/^(\d{2})\/(\d{2})\/(\d{2})$/);
+  }
+
+  // DDMMYY
+  if (!match) {
+    match = clean.match(/^(\d{2})(\d{2})(\d{2})$/);
   }
 
   if (!match) {
-    console.warn(`⚠️ Format date naissance ignoré : ${value}`);
+    console.warn("⚠️ Format date ignoré :", value);
     return null;
   }
 
@@ -120,25 +130,24 @@ function parseBirthDate(value) {
   month = Number(month);
   year = Number(year);
 
-  // Année courte
+  // année sur 2 chiffres
   if (year < 100) {
     year = year <= 30 ? 2000 + year : 1900 + year;
   }
 
   const date = new Date(Date.UTC(year, month - 1, day));
 
-  // Vérification date réelle
   if (
-    date.getUTCDate() !== day ||
+    date.getUTCFullYear() !== year ||
     date.getUTCMonth() + 1 !== month ||
-    date.getUTCFullYear() !== year
+    date.getUTCDate() !== day
   ) {
-    console.warn(`⚠️ Date invalide ignorée : ${value}`);
+    console.warn("⚠️ Date invalide :", value);
     return null;
   }
 
   console.log(
-    `🎂 Date de naissance convertie : ${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`
+    `🎂 Date convertie : ${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}/${year}`
   );
 
   return date.getTime();
@@ -197,7 +206,7 @@ for (const qa of invitee.questions_and_answers || []) {
     questionProperties[key] = qa.answer;
   }
 
-  if (qa.question === "Date de naissance Calendly") {
+  if (qa.question.toLowerCase().includes("date de naissance")) {
     birthDateValue = parseBirthDate(qa.answer);
   }
 }
