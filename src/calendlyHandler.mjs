@@ -189,6 +189,8 @@ let birthDateValue = null;
 
 for (const qa of invitee.questions_and_answers || []) {
 
+  console.log("📝", qa.question, "=>", qa.answer);
+
   const key = questionMap[qa.question];
 
   if (key) {
