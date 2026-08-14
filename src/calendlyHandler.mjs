@@ -177,11 +177,11 @@ function getMeetingTime(dateString) {
   }).format(new Date(dateString));
 }
 
-// 🆔 UUID du rendez-vous Calendly
-function getMeetingId(eventUri) {
-  if (!eventUri) return null;
+// 🆔 UUID de l'invité Calendly
+function getInviteeId(inviteeUri) {
+  if (!inviteeUri) return null;
 
-  return eventUri.split("/").pop();
+  return inviteeUri.split("/").pop();
 }
 
 // 🔹 Handler principal
@@ -225,7 +225,9 @@ export default async function calendlyHandler(req, res) {
 
   const meetingDay = getMeetingDay(event.start_time);
   const meetingTime = getMeetingTime(event.start_time);
-  const eventId = getMeetingId(event.uri);
+
+  const inviteeId = getInviteeId(invitee.uri);
+  const eventId = event.uri ? event.uri.split("/").pop() : null;
 
 
   // 🧩 QUESTIONS CALENDLY
@@ -260,7 +262,7 @@ if (birthDateValue) {
   calendly_jour_meeting: meetingDay,
   heure_rdv: meetingTime,
 
-  event_id: eventId,
+  event_id: inviteeId,
   scheduled_event_uri: event.uri,
   calendly_location: event.location?.location || "",
   calendly_event_uuid: eventId,
