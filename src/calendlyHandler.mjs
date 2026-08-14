@@ -152,6 +152,19 @@ function parseBirthDate(value) {
 
   return date.getTime();
 }
+
+// 📅 Jour de la semaine du rendez-vous
+function getMeetingDay(dateString) {
+  if (!dateString) return null;
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    weekday: "long",
+    timeZone: "Europe/Paris"
+  })
+    .format(new Date(dateString))
+    .replace(/^./, c => c.toUpperCase());
+}
+
 // 🔹 Handler principal
 export default async function calendlyHandler(req, res) {
   console.log("📩 Webhook Calendly reçu");
@@ -191,14 +204,14 @@ export default async function calendlyHandler(req, res) {
 
   console.log("✔ Contact OK :", contactId);
 
+  const meetingDay = getMeetingDay(event.start_time);
+
   // 🧩 QUESTIONS CALENDLY
 const questionProperties = {};
 
 let birthDateValue = null;
 
 for (const qa of invitee.questions_and_answers || []) {
-
-  console.log("📝", qa.question, "=>", qa.answer);
 
   const key = questionMap[qa.question];
 
@@ -221,6 +234,7 @@ if (birthDateValue) {
     lastname: invitee.last_name,
     calendly_event_start: event.start_time,
     calendly_event_end: event.end_time,
+    calendly_jour_meeting: meetingDay,
     calendly_cancel_url: invitee.cancel_url,
     calendly_reschedule_url: invitee.reschedule_url,
     calendly_invitee_uri: invitee.uri,
