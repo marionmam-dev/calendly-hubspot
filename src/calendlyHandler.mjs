@@ -206,6 +206,8 @@ export default async function calendlyHandler(req, res) {
   const email = invitee.email.toLowerCase();
   const event = invitee.scheduled_event || {};
 
+  console.log("📦 Calendly scheduled_event :", JSON.stringify(event, null, 2));
+
   // 🔎 CONTACT
   const contactId = await findContactWithRetry(email, HUBSPOT_TOKEN);
 
@@ -249,6 +251,7 @@ if (birthDateValue) {
     calendly_event_end: event.end_time,
     calendly_jour_meeting: meetingDay,
     heure_rdv: meetingTime,
+    event_id: event.uri,
     calendly_cancel_url: invitee.cancel_url,
     calendly_reschedule_url: invitee.reschedule_url,
     calendly_invitee_uri: invitee.uri,
