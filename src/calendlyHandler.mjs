@@ -165,6 +165,18 @@ function getMeetingDay(dateString) {
     .replace(/^./, c => c.toUpperCase());
 }
 
+// 🕐 Heure du rendez-vous
+function getMeetingTime(dateString) {
+  if (!dateString) return null;
+
+  return new Intl.DateTimeFormat("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Europe/Paris"
+  }).format(new Date(dateString));
+}
+
 // 🔹 Handler principal
 export default async function calendlyHandler(req, res) {
   console.log("📩 Webhook Calendly reçu");
@@ -205,6 +217,7 @@ export default async function calendlyHandler(req, res) {
   console.log("✔ Contact OK :", contactId);
 
   const meetingDay = getMeetingDay(event.start_time);
+  const meetingTime = getMeetingTime(event.start_time);
 
   // 🧩 QUESTIONS CALENDLY
 const questionProperties = {};
@@ -235,6 +248,7 @@ if (birthDateValue) {
     calendly_event_start: event.start_time,
     calendly_event_end: event.end_time,
     calendly_jour_meeting: meetingDay,
+    heure_rdv: meetingTime,
     calendly_cancel_url: invitee.cancel_url,
     calendly_reschedule_url: invitee.reschedule_url,
     calendly_invitee_uri: invitee.uri,
