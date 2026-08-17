@@ -186,6 +186,42 @@ function getInviteeId(inviteeUri) {
   return inviteeUri.split("/").pop();
 }
 
+// 👤 Formate correctement les noms et prénoms
+function formatName(value) {
+  if (!value) return value;
+
+  let formatted = value
+    .trim()
+    .toLowerCase()
+
+    // Majuscule après début, espace, tiret ou apostrophe
+    .replace(/(^|[\s-'])\p{L}/gu, m => m.toUpperCase());
+
+  // Particules à conserver en minuscules (hors début de chaîne)
+  const particles = [
+    "de", "du", "des",
+    "la", "le", "les",
+    "van", "von",
+    "der", "den", "ter",
+    "da", "dos", "das",
+    "di", "del", "della", "dei",
+    "bin", "ibn"
+  ];
+
+  particles.forEach(particle => {
+    const regex = new RegExp(`([\\s-])${particle}(?=[\\s-'])`, "giu");
+    formatted = formatted.replace(regex, `$1${particle}`);
+  });
+
+  // McDonald
+  formatted = formatted.replace(/\bMc(\p{L})/gu, (_, letter) => `Mc${letter.toUpperCase()}`);
+
+  // MacDonald
+  formatted = formatted.replace(/\bMac(\p{L})/gu, (_, letter) => `Mac${letter.toUpperCase()}`);
+
+  return formatted;
+}
+
 // 🔹 Handler principal
 export default async function calendlyHandler(req, res) {
   console.log("📩 Webhook Calendly reçu");
@@ -256,8 +292,8 @@ if (birthDateValue) {
 
   // 🧾 UPDATE CONTACT HUBSPOT
   const contactProps = {
-  firstname: invitee.first_name,
-  lastname: invitee.last_name,
+  firstname: formatName(invitee.first_name),
+  lastname: formatName(invitee.last_name),
 
   calendly_event_start: event.start_time,
   calendly_event_end: event.end_time,
