@@ -157,12 +157,14 @@ function parseBirthDate(value) {
 function getMeetingDay(dateString) {
   if (!dateString) return null;
 
-  return new Intl.DateTimeFormat("fr-FR", {
+  const formatted = new Intl.DateTimeFormat("fr-FR", {
     weekday: "long",
+    day: "numeric",
+    month: "long",
     timeZone: "Europe/Paris"
-  })
-    .format(new Date(dateString))
-    .replace(/^./, c => c.toUpperCase());
+  }).format(new Date(dateString));
+
+  return formatted.replace(/^./, c => c.toUpperCase());
 }
 
 // 🕐 Heure du rendez-vous
