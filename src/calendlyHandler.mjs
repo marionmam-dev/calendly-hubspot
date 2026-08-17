@@ -193,11 +193,10 @@ function formatName(value) {
   let formatted = value
     .trim()
     .toLowerCase()
+    // Majuscule au début et après espace, tiret ou apostrophe
+    .replace(/(^|[ '-])\p{L}/gu, m => m.toUpperCase());
 
-    // Majuscule après début, espace, tiret ou apostrophe
-    .replace(/(^|[\s-'])\p{L}/gu, m => m.toUpperCase());
-
-  // Particules à conserver en minuscules (hors début de chaîne)
+  // Particules à conserver en minuscules (sauf en début de nom)
   const particles = [
     "de", "du", "des",
     "la", "le", "les",
@@ -209,15 +208,25 @@ function formatName(value) {
   ];
 
   particles.forEach(particle => {
-    const regex = new RegExp(`([\\s-])${particle}(?=[\\s-'])`, "giu");
+    const regex = new RegExp(
+      `([ '-])${particle}(?=[ '-]|$)`,
+      "gu"
+    );
+
     formatted = formatted.replace(regex, `$1${particle}`);
   });
 
-  // McDonald
-  formatted = formatted.replace(/\bMc(\p{L})/gu, (_, letter) => `Mc${letter.toUpperCase()}`);
+  // McDonald, McCarthy...
+  formatted = formatted.replace(
+    /\bMc(\p{L})/gu,
+    (_, letter) => `Mc${letter.toUpperCase()}`
+  );
 
-  // MacDonald
-  formatted = formatted.replace(/\bMac(\p{L})/gu, (_, letter) => `Mac${letter.toUpperCase()}`);
+  // MacDonald, MacArthur...
+  formatted = formatted.replace(
+    /\bMac(\p{L})/gu,
+    (_, letter) => `Mac${letter.toUpperCase()}`
+  );
 
   return formatted;
 }
