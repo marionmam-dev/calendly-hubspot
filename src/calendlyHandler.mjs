@@ -164,7 +164,7 @@ function getMeetingDay(dateString) {
     timeZone: "Europe/Paris"
   }).format(new Date(dateString));
 
-  return formatted.replace(/^./, c => c.toUpperCase());
+  return formatted;
 }
 
 // 🕐 Heure du rendez-vous
