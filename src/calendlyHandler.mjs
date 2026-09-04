@@ -24,7 +24,7 @@ function verifyCalendlySignature(req) {
 
 // 🔹 Mapping questions Calendly → HubSpot
 const questionMap = {
-  "Que souhaitez-vous faire chez Sym Optic ?": "calendly_answer_1",
+  "Que souhaitez-vous faire chez Sym Optic ? ": "calendly_answer_1",
   "Numéro de téléphone": "calendly_answer_2",
   "Date de naissance jj/mm/aaaa (réservé au plus de 16 ans)": "calendly_answer_3",
   "Êtes-vous atteint(e) de diabète ?": "calendly_answer_4",
@@ -32,7 +32,7 @@ const questionMap = {
   "De quand datent vos dernières lunettes ?": "calendly_answer_6",
   "Nom de votre mutuelle si vous en avez une": "calendly_answer_8",
   "Comment nous avez-vous connus ?": "calendly_answer_9",
-  "Adresse": "address"
+  "Adresse postale": "address"
 };
 
 // 🔁 retry HubSpot (15s, 5s, 10s)
@@ -252,10 +252,6 @@ export default async function calendlyHandler(req, res) {
     return res.status(400).send("Invalid JSON");
   }
 
-console.log("========== 📩 PAYLOAD CALENDLY BRUT ==========");
-console.log(JSON.stringify(payload, null, 2));
-console.log("========== 📩 FIN PAYLOAD CALENDLY ==========");
-
   const invitee = payload.payload;
   if (!invitee?.email) {
     return res.status(200).send("No email");
@@ -286,45 +282,18 @@ const questionProperties = {};
 
 let birthDateValue = null;
 
-console.log("========== 🧩 QUESTIONS CALENDLY ==========");
-
 for (const qa of invitee.questions_and_answers || []) {
-
-  console.log("❓ Question :", qa.question);
-  console.log("➡️ Réponse :", qa.answer);
 
   const key = questionMap[qa.question];
 
   if (key) {
     questionProperties[key] = qa.answer;
-
-    console.log(
-      `🔗 Mapping : "${qa.question}" → "${key}" = "${qa.answer}"`
-    );
-  } else {
-    console.log(`⚠️ Question NON MAPPÉE : "${qa.question}"`);
   }
 
   if (qa.question.toLowerCase().includes("date de naissance")) {
     birthDateValue = parseBirthDate(qa.answer);
-
-    console.log(
-      "🎂 Date de naissance convertie :",
-      birthDateValue
-    );
   }
 }
-
-if (birthDateValue) {
-  questionProperties.date_de_naissance = birthDateValue;
-}
-
-console.log(
-  "📦 PROPRIÉTÉS QUESTIONS À ENVOYER À HUBSPOT :",
-  JSON.stringify(questionProperties, null, 2)
-);
-
-console.log("========== 🧩 FIN QUESTIONS ==========");
 
 if (birthDateValue) {
   questionProperties.date_de_naissance = birthDateValue;
@@ -351,16 +320,6 @@ if (birthDateValue) {
 
   ...questionProperties
 };
-console.log("========== 📤 UPDATE HUBSPOT ==========");
-console.log("👤 Contact ID :", contactId);
-console.log("📧 Email :", email);
-console.log("🆔 Invitee ID :", inviteeId);
-console.log("🆔 Event ID :", eventId);
-console.log(
-  "📦 PROPRIÉTÉS ENVOYÉES À HUBSPOT :",
-  JSON.stringify(contactProps, null, 2)
-);
-console.log("========== 📤 FIN UPDATE HUBSPOT ==========");
 
   try {
     await axios.patch(
@@ -374,19 +333,7 @@ console.log("========== 📤 FIN UPDATE HUBSPOT ==========");
       }
     );
 
-    console.log("✔ Contact enrichi dans HubSpot");
-console.log(
-  "📥 Réponse HubSpot :",
-  JSON.stringify(
-    {
-      status: "success",
-      contactId,
-      propertiesSent: contactProps
-    },
-    null,
-    2
-  )
-);
+  console.log("✔ Contact enrichi dans HubSpot :", contactId);
   } catch (err) {
     console.error("❌ Worker crash:", err.response?.data || err.message);
   }
