@@ -26,13 +26,13 @@ function verifyCalendlySignature(req) {
 const questionMap = {
   "Que souhaitez-vous faire chez Sym Optic ?": "calendly_answer_1",
   "Numéro de téléphone": "calendly_answer_2",
-  "Date de naissance": "calendly_answer_3",
-  "Diabète": "calendly_answer_4",
-  "Glaucome / Cataracte / DMLA": "calendly_answer_5",
-  "Dernières lunettes": "calendly_answer_6",
-  "Nom de la mutuelle": "calendly_answer_8",
+  "Date de naissance jj/mm/aaaa (réservé au plus de 16 ans)": "calendly_answer_3",
+  "Êtes-vous atteint(e) de diabète ?": "calendly_answer_4",
+  "Avez-vous été diagnostiqué(e) avec l’une des maladies oculaires suivantes : Glaucome, Cataracte, Dégénérescence maculaire liée à l’âge (DMLA)... ?": "calendly_answer_5",
+  "De quand datent vos dernières lunettes ?": "calendly_answer_6",
+  "Nom de votre mutuelle si vous en avez une": "calendly_answer_8",
   "Comment nous avez-vous connus ?": "calendly_answer_9",
-  "Adresse postale": "address"
+  "Adresse": "address"
 };
 
 // 🔁 retry HubSpot (15s, 5s, 10s)
